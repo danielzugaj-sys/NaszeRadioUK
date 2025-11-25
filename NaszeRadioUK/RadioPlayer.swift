@@ -13,7 +13,7 @@ class RadioPlayer: NSObject, ObservableObject {
     
     // MARK: - Stan Aplikacji
     @Published var isPlaying = false
-    @Published var currentTrack = "Nasze Radio UK" // Domyślny tekst startowy
+    @Published var currentTrack = "Nasze Radio UK"
     
     private var player: AVPlayer?
     private var metadataTimer: Timer?
@@ -32,6 +32,11 @@ class RadioPlayer: NSObject, ObservableObject {
         guard let url = URL(string: streamURL) else { return }
         
         let playerItem = AVPlayerItem(url: url)
+        
+        // 1. METODA PEWNA (Mimo że generuje ostrzeżenie, działa najlepiej)
+        // Dodajemy obserwatora do danych zaszytych w dźwięku
+        playerItem.addObserver(self, forKeyPath: "timedMetadata", options: .new, context: nil)
+        
         self.player = AVPlayer(playerItem: playerItem)
         
         // Konfiguracja Audio (Tło)
@@ -58,48 +63,83 @@ class RadioPlayer: NSObject, ObservableObject {
         player?.pause()
         player?.seek(to: .zero)
         isPlaying = false
-        // Przy stopie resetujemy tytuł do nazwy stacji
         DispatchQueue.main.async {
             self.currentTrack = "Nasze Radio UK"
         }
     }
     
-    // MARK: - ODCZYT METADANYCH Z JSON (Metoda Stabilna)
+    // MARK: - METODA 1: ODCZYT ZE STRUMIENIA (To przywracamy!)
+    override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
+        if keyPath == "timedMetadata" {
+            guard let item = object as? AVPlayerItem, let metadata = item.timedMetadata else { return }
+            
+            for item in metadata {
+                if let stringValue = item.stringValue {
+                    DispatchQueue.main.async {
+                        // Aktualizujemy tytuł natychmiast, gdy przyjdzie z dźwiękiem
+                        self.currentTrack = stringValue
+                        print("Tytuł ze strumienia: \(stringValue)")
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - METODA 2: ODCZYT Z JSON (Jako zapas + Debugowanie)
     private func startMetadataTimer() {
         fetchMetadata()
-        // Odświeżanie co 10 sekund
         metadataTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
             self?.fetchMetadata()
         }
     }
     
     private func fetchMetadata() {
-        // Dodajemy losowy parametr czasu, żeby ominąć cache (?t=...)
         let urlString = "\(metadataURL)?t=\(Date().timeIntervalSince1970)"
         guard let url = URL(string: urlString) else { return }
         
         URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
             guard let self = self, let data = data, error == nil else { return }
 
+            // Dodaliśmy logowanie, żebyś widział w konsoli co odbierasz
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("Odebrany JSON: \(jsonString)")
+            }
+
             do {
-                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let streamData = json["stream"] as? [String: Any],
-                   let title = streamData["title"] as? String {
+                // Próbujemy różnych struktur JSON, bo serwery bywają różne
+                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                     
-                    // Aktualizujemy tylko jeśli tytuł nie jest pusty i różni się od obecnego
-                    if !title.isEmpty && title != self.currentTrack {
+                    var newTitle: String?
+                    
+                    // Opcja A: Standardowa
+                    if let stream = json["stream"] as? [String: Any], let title = stream["title"] as? String {
+                        newTitle = title
+                    }
+                    // Opcja B: Płaska struktura
+                    else if let title = json["title"] as? String {
+                        newTitle = title
+                    }
+                    // Opcja C: Struktura mountpoint
+                    else if let mounts = json["mounts"] as? [String: Any],
+                            let defaultMount = mounts["/stream"] as? [String: Any],
+                            let title = defaultMount["title"] as? String {
+                        newTitle = title
+                    }
+
+                    if let validTitle = newTitle, !validTitle.isEmpty {
                         DispatchQueue.main.async {
-                            self.currentTrack = title
+                            self.currentTrack = validTitle
                         }
                     }
                 }
             } catch {
-                print("Błąd JSON: \(error)")
+                print("Błąd parsowania JSON: \(error)")
             }
         }.resume()
     }
     
     deinit {
         metadataTimer?.invalidate()
+        player?.currentItem?.removeObserver(self, forKeyPath: "timedMetadata")
     }
 }
