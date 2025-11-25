@@ -15,9 +15,9 @@ struct KontaktView: View {
 
     // MARK: - Adresy do przekierowań
     private let whatsAppURL = URL(string: "https://wa.me/44777123456")!
-    private let facebookURL = URL(string: "https://www.facebook.com/naszeradiouk")!
-    private let tiktokURL = URL(string: "https://www.tiktok.com/@naszeradiouk")!
-    private let instagramURL = URL(string: "https://www.instagram.com/naszeradiouk")!
+    private let facebookURL = URL(string: "https://www.facebook.com/naszeradiouk/")!
+    private let tiktokURL = URL(string: "https://www.tiktok.com/@naszeradio_uk?_r=1&_t=ZN-91hZNxiXpVm")!
+    private let instagramURL = URL(string: "https://www.instagram.com/naszeradiowuk/?igsh=NHFtdm8ybno1dG0w#")!
     
     var body: some View {
         ZStack {
