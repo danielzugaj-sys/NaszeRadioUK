@@ -8,12 +8,20 @@ import Foundation
 import AVFoundation
 import Combine
 import UIKit
+import MediaPlayer
 
 class RadioPlayer: NSObject, ObservableObject {
     
     // MARK: - Stan Aplikacji
     @Published var isPlaying = false
     @Published var currentTrack = "Nasze Radio UK"
+    
+    // Głośność (od 0.0 do 1.0)
+    @Published var volume: Float = 1.0 {
+        didSet {
+            player?.volume = volume
+        }
+    }
     
     private var player: AVPlayer?
     private var metadataTimer: Timer?
@@ -24,8 +32,28 @@ class RadioPlayer: NSObject, ObservableObject {
 
     override init() {
         super.init()
+        setupAudioSession()
         setupPlayer()
+        setupRemoteTransportControls()
         startMetadataTimer()
+        
+        // Obserwator Przerwań (np. połączenie przychodzące, włączenie TikToka)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(handleInterruption),
+                                               name: AVAudioSession.interruptionNotification,
+                                               object: nil)
+        
+        play()
+    }
+
+    private func setupAudioSession() {
+        do {
+            // ZMIANA: Usunęliśmy [.mixWithOthers]. Teraz radio jest "główne" i ustępuje miejsca innym.
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("Błąd konfiguracji audio: \(error)")
+        }
     }
 
     private func setupPlayer() {
@@ -33,25 +61,80 @@ class RadioPlayer: NSObject, ObservableObject {
         
         let playerItem = AVPlayerItem(url: url)
         
-        // 1. METODA PEWNA (Mimo że generuje ostrzeżenie, działa najlepiej)
-        // Dodajemy obserwatora do danych zaszytych w dźwięku
+        // Obserwator metadanych ze strumienia (Metoda 1)
         playerItem.addObserver(self, forKeyPath: "timedMetadata", options: .new, context: nil)
         
         self.player = AVPlayer(playerItem: playerItem)
-        
-        // Konfiguracja Audio (Tło)
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
-            try AVAudioSession.sharedInstance().setActive(true)
-        } catch {
-            print("Błąd konfiguracji audio: \(error)")
+        self.player?.volume = volume
+    }
+    
+    // MARK: - OBSŁUGA PRZERWAŃ (TikTok, Instagram, Połączenia)
+    @objc func handleInterruption(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
         }
+
+        if type == .began {
+            // Ktoś inny zaczął grać (np. TikTok) -> Pauzujemy
+            print("Przerwanie: Początek (Pauza)")
+            // Nie zmieniamy isPlaying na false w UI, żeby po powrocie wiedzieć, że trzeba wznowić
+            player?.pause()
+            
+        } else if type == .ended {
+            // Ktoś inny skończył grać -> Sprawdzamy czy wznowić
+            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                if options.contains(.shouldResume) {
+                    // Wznawiamy granie
+                    print("Przerwanie: Koniec (Wznowienie)")
+                    player?.play()
+                    // Upewniamy się, że UI pokazuje Play
+                    DispatchQueue.main.async {
+                        self.isPlaying = true
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Konfiguracja Ekranu Blokady
+    private func setupRemoteTransportControls() {
+        let commandCenter = MPRemoteCommandCenter.shared()
+
+        commandCenter.playCommand.addTarget { [weak self] event in
+            self?.play()
+            return .success
+        }
+
+        commandCenter.pauseCommand.addTarget { [weak self] event in
+            self?.pause()
+            return .success
+        }
+        
+        updateNowPlayingInfo(title: "Nasze Radio UK")
+    }
+    
+    private func updateNowPlayingInfo(title: String) {
+        var nowPlayingInfo = [String: Any]()
+        nowPlayingInfo[MPMediaItemPropertyTitle] = title
+        nowPlayingInfo[MPMediaItemPropertyArtist] = "Nasze Radio UK"
+        
+        if let image = UIImage(named: "AppIcon") {
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        }
+
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
 
     // MARK: - Metody Sterujące
     func play() {
+        // Aktywacja sesji jest ważna przy wznawianiu po przerwie
+        try? AVAudioSession.sharedInstance().setActive(true)
         player?.play()
         isPlaying = true
+        updateNowPlayingInfo(title: currentTrack)
     }
 
     func pause() {
@@ -65,10 +148,11 @@ class RadioPlayer: NSObject, ObservableObject {
         isPlaying = false
         DispatchQueue.main.async {
             self.currentTrack = "Nasze Radio UK"
+            self.updateNowPlayingInfo(title: "Nasze Radio UK")
         }
     }
     
-    // MARK: - METODA 1: ODCZYT ZE STRUMIENIA (To przywracamy!)
+    // MARK: - METODA 1: ODCZYT ZE STRUMIENIA
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
         if keyPath == "timedMetadata" {
             guard let item = object as? AVPlayerItem, let metadata = item.timedMetadata else { return }
@@ -76,16 +160,15 @@ class RadioPlayer: NSObject, ObservableObject {
             for item in metadata {
                 if let stringValue = item.stringValue {
                     DispatchQueue.main.async {
-                        // Aktualizujemy tytuł natychmiast, gdy przyjdzie z dźwiękiem
                         self.currentTrack = stringValue
-                        print("Tytuł ze strumienia: \(stringValue)")
+                        self.updateNowPlayingInfo(title: stringValue)
                     }
                 }
             }
         }
     }
     
-    // MARK: - METODA 2: ODCZYT Z JSON (Jako zapas + Debugowanie)
+    // MARK: - METODA 2: ODCZYT Z JSON
     private func startMetadataTimer() {
         fetchMetadata()
         metadataTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
@@ -100,35 +183,24 @@ class RadioPlayer: NSObject, ObservableObject {
         URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
             guard let self = self, let data = data, error == nil else { return }
 
-            // Dodaliśmy logowanie, żebyś widział w konsoli co odbierasz
-            if let jsonString = String(data: data, encoding: .utf8) {
-                print("Odebrany JSON: \(jsonString)")
-            }
-
             do {
-                // Próbujemy różnych struktur JSON, bo serwery bywają różne
                 if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    
                     var newTitle: String?
                     
-                    // Opcja A: Standardowa
                     if let stream = json["stream"] as? [String: Any], let title = stream["title"] as? String {
                         newTitle = title
-                    }
-                    // Opcja B: Płaska struktura
-                    else if let title = json["title"] as? String {
+                    } else if let title = json["title"] as? String {
                         newTitle = title
-                    }
-                    // Opcja C: Struktura mountpoint
-                    else if let mounts = json["mounts"] as? [String: Any],
+                    } else if let mounts = json["mounts"] as? [String: Any],
                             let defaultMount = mounts["/stream"] as? [String: Any],
                             let title = defaultMount["title"] as? String {
                         newTitle = title
                     }
 
-                    if let validTitle = newTitle, !validTitle.isEmpty {
+                    if let validTitle = newTitle, !validTitle.isEmpty, validTitle != self.currentTrack {
                         DispatchQueue.main.async {
                             self.currentTrack = validTitle
+                            self.updateNowPlayingInfo(title: validTitle)
                         }
                     }
                 }
@@ -140,6 +212,7 @@ class RadioPlayer: NSObject, ObservableObject {
     
     deinit {
         metadataTimer?.invalidate()
+        NotificationCenter.default.removeObserver(self) // Usuwamy obserwatora przerwań
         player?.currentItem?.removeObserver(self, forKeyPath: "timedMetadata")
     }
 }
