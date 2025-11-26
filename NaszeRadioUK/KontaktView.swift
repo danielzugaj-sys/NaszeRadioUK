@@ -12,19 +12,23 @@ struct KontaktView: View {
     
     @State private var pulsate = false
 
-    // MARK: - POPRAWIONE ADRESY URL (Dokładne)
+    // MARK: - KONFIGURACJA LINKÓW
     
     // WhatsApp
     private let whatsAppURL = URL(string: "https://wa.me/44777123456")!
     
-    // Facebook
-    private let facebookURL = URL(string: "https://www.facebook.com/naszeradiouk/")!
+    // FACEBOOK: Tutaj wpisz Numeryczne ID (te cyfry), żeby działało na 100% w aplikacji
+    // Jeśli nie znasz numeru, wpisz nazwę 'naszeradiouk', ale numer jest pewniejszy.
+    private let facebookAppURL = "fb://profile/234603606740099" // ⬅️ Zmień numer, jeśli jest inny!
+    private let facebookWebURL = "https://www.facebook.com/naszeradiouk/"
     
-    // TikTok
-    private let tiktokURL = URL(string: "https://www.tiktok.com/@naszeradio_uk")!
+    // TIKTOK
+    private let tiktokAppURL = "snssdk1232://user/profile/naszeradio_uk" // Schemat aplikacji TikTok
+    private let tiktokWebURL = "https://www.tiktok.com/@naszeradio_uk"
     
-    // Instagram
-    private let instagramURL = URL(string: "https://www.instagram.com/naszeradiowuk/")!
+    // INSTAGRAM
+    private let instagramAppURL = "instagram://user?username=naszeradiowuk" // Schemat aplikacji Instagram
+    private let instagramWebURL = "https://www.instagram.com/naszeradiowuk/"
     
     var body: some View {
         ZStack {
@@ -37,7 +41,7 @@ struct KontaktView: View {
             // MARK: - Warstwa TREŚCI
             VStack(spacing: 0) {
                 
-                // MARK: - NAGŁÓWEK
+                // NAGŁÓWEK
                 VStack(spacing: 5) {
                     Text("Masz ciekawy temat?")
                         .font(.title2)
@@ -52,7 +56,7 @@ struct KontaktView: View {
                 .padding(.top, 80)
 
                 
-                // MARK: - PRZYCISK WHATSAPP
+                // PRZYCISK WHATSAPP
                 Link(destination: whatsAppURL) {
                     Text("Wyślij wiadomość na WhatsApp")
                         .font(.headline)
@@ -73,11 +77,16 @@ struct KontaktView: View {
                     }
                 }
                 
-                // MARK: - LINKI DO SOCIAL MEDIÓW
+                // MARK: - LINKI DO SOCIAL MEDIÓW (SMART BUTTONS)
                 VStack(spacing: 40) {
-                    LinkText(title: "Facebook", url: facebookURL)
-                    LinkText(title: "TikTok", url: tiktokURL)
-                    LinkText(title: "Instagram", url: instagramURL)
+                    // Facebook
+                    SmartLinkButton(title: "Facebook", appLink: facebookAppURL, webLink: facebookWebURL)
+                    
+                    // TikTok
+                    SmartLinkButton(title: "TikTok", appLink: tiktokAppURL, webLink: tiktokWebURL)
+                    
+                    // Instagram
+                    SmartLinkButton(title: "Instagram", appLink: instagramAppURL, webLink: instagramWebURL)
                 }
                 .padding(.top, 70)
                 
@@ -90,24 +99,41 @@ struct KontaktView: View {
                     .padding(.bottom, 1)
             }
             .padding(.horizontal, 30)
-            
             .toolbarColorScheme(.dark, for: .tabBar)
             
         } // Koniec ZStack
     }
 }
 
-// MARK: - Pomocniczy Widok dla Linków
-struct LinkText: View {
+// MARK: - INTELIGENTNY PRZYCISK (Smart Button)
+// Próbuje otworzyć aplikację, a jak się nie uda - otwiera stronę www
+struct SmartLinkButton: View {
     let title: String
-    let url: URL
+    let appLink: String
+    let webLink: String
     
     var body: some View {
-        Link(destination: url) {
+        Button(action: {
+            openSmartLink()
+        }) {
             Text(title)
                 .font(.largeTitle)
                 .fontWeight(.semibold)
                 .foregroundColor(.white)
+        }
+    }
+    
+    func openSmartLink() {
+        // 1. Próbujemy otworzyć link aplikacji (np. fb://)
+        if let appURL = URL(string: appLink) {
+            UIApplication.shared.open(appURL) { success in
+                if !success {
+                    // 2. Jeśli się nie uda (brak apki), otwieramy link WWW
+                    if let webURL = URL(string: webLink) {
+                        UIApplication.shared.open(webURL)
+                    }
+                }
+            }
         }
     }
 }
