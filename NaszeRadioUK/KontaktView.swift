@@ -17,17 +17,17 @@ struct KontaktView: View {
     // WhatsApp
     private let whatsAppURL = URL(string: "https://wa.me/44777123456")!
     
-    // FACEBOOK: Tutaj wpisz Numeryczne ID (te cyfry), żeby działało na 100% w aplikacji
-    // Jeśli nie znasz numeru, wpisz nazwę 'naszeradiouk', ale numer jest pewniejszy.
-    private let facebookAppURL = "fb://profile/234603606740099" // ⬅️ Zmień numer, jeśli jest inny!
+    // FACEBOOK: NOWA, LEPSZA METODA
+    // Używamy formatu, który mówi apce FB: "Otwórz ten adres WWW u siebie"
+    private let facebookAppURL = "fb://facewebmodal/f?href=https://www.facebook.com/naszeradiouk"
     private let facebookWebURL = "https://www.facebook.com/naszeradiouk/"
     
     // TIKTOK
-    private let tiktokAppURL = "snssdk1232://user/profile/naszeradio_uk" // Schemat aplikacji TikTok
+    private let tiktokAppURL = "snssdk1232://user/profile/naszeradio_uk"
     private let tiktokWebURL = "https://www.tiktok.com/@naszeradio_uk"
     
     // INSTAGRAM
-    private let instagramAppURL = "instagram://user?username=naszeradiowuk" // Schemat aplikacji Instagram
+    private let instagramAppURL = "instagram://user?username=naszeradiowuk"
     private let instagramWebURL = "https://www.instagram.com/naszeradiowuk/"
     
     var body: some View {
@@ -106,7 +106,6 @@ struct KontaktView: View {
 }
 
 // MARK: - INTELIGENTNY PRZYCISK (Smart Button)
-// Próbuje otworzyć aplikację, a jak się nie uda - otwiera stronę www
 struct SmartLinkButton: View {
     let title: String
     let appLink: String
@@ -124,15 +123,20 @@ struct SmartLinkButton: View {
     }
     
     func openSmartLink() {
-        // 1. Próbujemy otworzyć link aplikacji (np. fb://)
+        // 1. Próbujemy otworzyć link aplikacji
         if let appURL = URL(string: appLink) {
             UIApplication.shared.open(appURL) { success in
+                // Jeśli się NIE uda (success jest false), otwieramy przeglądarkę
                 if !success {
-                    // 2. Jeśli się nie uda (brak apki), otwieramy link WWW
                     if let webURL = URL(string: webLink) {
                         UIApplication.shared.open(webURL)
                     }
                 }
+            }
+        } else {
+            // Jeśli link aplikacji jest błędny, od razu otwieramy WWW
+            if let webURL = URL(string: webLink) {
+                UIApplication.shared.open(webURL)
             }
         }
     }
