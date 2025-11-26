@@ -28,7 +28,7 @@ struct ContentView: View {
                         .aspectRatio(contentMode: .fit)
                         .frame(maxWidth: 300)
                         .padding(.top, 40)
-                        .padding(.bottom, 20)
+                        .padding(.bottom, 40)
                     
                     Spacer()
                     
@@ -39,34 +39,33 @@ struct ContentView: View {
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
-                        .padding(.bottom, 40)
                     
-                    // 1. JEDEN DUŻY PRZYCISK PLAY/PAUSE
-                    Button(action: {
-                        if radioPlayer.isPlaying {
-                            radioPlayer.pause()
-                        } else {
-                            radioPlayer.play()
+                    // PRZYCISKI PLAY / STOP
+                    HStack(spacing: 50) {
+                        // Poprawna logika PLAY / PAUZA
+                        Button(action: {
+                            if radioPlayer.isPlaying {
+                                radioPlayer.pause()
+                            } else {
+                                radioPlayer.play()
+                            }
+                        }) {
+                            Image(systemName: radioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                                .font(.system(size: 85))
+                                .foregroundColor(Color.white)
                         }
-                    }) {
-                        Image(systemName: radioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                            .font(.system(size: 100)) // Większy przycisk
-                            .foregroundColor(Color.white)
-                            .shadow(radius: 10) // Cień dla lepszego efektu
-                    }
-                    .padding(.bottom, 20)
-                    
-                    // 2. SUWAK GŁOŚNOŚCI
-                    VStack {
-                        HStack {
-                            Image(systemName: "speaker.fill").foregroundColor(.gray)
-                            Slider(value: $radioPlayer.volume, in: 0...1)
-                                .accentColor(.white) // Biały suwak
-                            Image(systemName: "speaker.wave.3.fill").foregroundColor(.white)
+                        
+                        // Przycisk STOP
+                        Button(action: {
+                            radioPlayer.stop()
+                        }) {
+                            Image(systemName: "stop.circle.fill")
+                                .font(.system(size: 85))
+                                .foregroundColor(Color.white)
                         }
-                        .padding(.horizontal, 40)
                     }
-                    .padding(.bottom, 80)
+                    .padding(.top, 40)
+                    .padding(.bottom, 100)
                     
                     Spacer()
                     
@@ -78,7 +77,7 @@ struct ContentView: View {
                 }
             } // Koniec ZStack
             
-            // Konfiguracja zakładki radiowej
+            // Konfiguracja zakładki radiowej (POPRYWNE WYWOŁANIE LABEL)
             .tabItem {
                 Label("NR", systemImage: "antenna.radiowaves.left.and.right")
             }
@@ -87,19 +86,19 @@ struct ContentView: View {
             
             // KONTAKT
             KontaktView(backgroundImageName: backgroundImageName)
-                .tabItem { Label("Kontakt", systemImage: "phone.fill") }
+                .tabItem { Label("Kontakt", systemImage: "phone.fill") } // POPRAWNE
             
             // REKLAMA
             ReklamaView(backgroundImageName: backgroundImageName)
-                .tabItem { Label("Reklama", systemImage: "speaker.fill") }
+                .tabItem { Label("Reklama", systemImage: "speaker.fill") } // POPRAWNE
 
             // O NAS
             ONasView(backgroundImageName: backgroundImageName)
-                .tabItem { Label("O Nas", systemImage: "info.circle.fill") }
+                .tabItem { Label("O Nas", systemImage: "info.circle.fill") } // POPRAWNE
 
             // WIADOMOŚCI
             WiadomosciView(backgroundImageName: backgroundImageName)
-                .tabItem { Label("Wiadomości", systemImage: "newspaper.fill") }
+                .tabItem { Label("Wiadomości", systemImage: "newspaper.fill") } // POPRAWNE
             
         } // Koniec TabView
         

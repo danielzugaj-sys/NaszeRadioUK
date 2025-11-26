@@ -12,18 +12,19 @@ struct KontaktView: View {
     
     @State private var pulsate = false
 
-    // MARK: - POPRAWIONE LINKI (Deep Links)
-    // WhatsApp: Bez zmian, działa dobrze
+    // MARK: - POPRAWIONE ADRESY URL (Dokładne)
+    
+    // WhatsApp
     private let whatsAppURL = URL(string: "https://wa.me/44777123456")!
     
-    // Facebook: Często lepiej działa bez 'www' lub ze specyficznym ID, ale zostawiamy standardowy jeśli działał
-    private let facebookURL = URL(string: "https://www.facebook.com/naszeradiouk")!
+    // Facebook
+    private let facebookURL = URL(string: "https://www.facebook.com/naszeradiouk/")!
     
-    // TikTok: Usunięcie 'www' często pomaga wymusić otwarcie aplikacji
-    private let tiktokURL = URL(string: "https://tiktok.com/@naszeradiouk")!
+    // TikTok
+    private let tiktokURL = URL(string: "https://www.tiktok.com/@naszeradio_uk")!
     
-    // Instagram: Dodanie '/_u/' wymusza otwarcie w aplikacji na iOS!
-    private let instagramURL = URL(string: "https://instagram.com/_u/naszeradiouk")!
+    // Instagram
+    private let instagramURL = URL(string: "https://www.instagram.com/naszeradiowuk/")!
     
     var body: some View {
         ZStack {
@@ -86,7 +87,7 @@ struct KontaktView: View {
                 Text("Nasze Radio UK © 2025")
                     .font(.caption)
                     .foregroundColor(.gray)
-                    .padding(.bottom, 10)
+                    .padding(.bottom, 1)
             }
             .padding(.horizontal, 30)
             
