@@ -17,9 +17,9 @@ struct KontaktView: View {
     // WhatsApp
     private let whatsAppURL = URL(string: "https://wa.me/44777123456")!
     
-    // FACEBOOK: NOWA, LEPSZA METODA
-    // Używamy formatu, który mówi apce FB: "Otwórz ten adres WWW u siebie"
-    private let facebookAppURL = "fb://facewebmodal/f?href=https://www.facebook.com/naszeradiouk"
+    // FACEBOOK - POPRAWIONY DLA TWOJEGO ID
+    // Używamy 'profile' ponieważ ID 1000... to format nowego typu strony/profilu
+    private let facebookAppURL = "fb://profile/100083266690757"
     private let facebookWebURL = "https://www.facebook.com/naszeradiouk/"
     
     // TIKTOK
@@ -123,20 +123,15 @@ struct SmartLinkButton: View {
     }
     
     func openSmartLink() {
-        // 1. Próbujemy otworzyć link aplikacji
+        // 1. Próbujemy otworzyć aplikację
         if let appURL = URL(string: appLink) {
             UIApplication.shared.open(appURL) { success in
-                // Jeśli się NIE uda (success jest false), otwieramy przeglądarkę
                 if !success {
+                    // 2. Jeśli się nie uda (brak apki), otwieramy WWW
                     if let webURL = URL(string: webLink) {
                         UIApplication.shared.open(webURL)
                     }
                 }
-            }
-        } else {
-            // Jeśli link aplikacji jest błędny, od razu otwieramy WWW
-            if let webURL = URL(string: webLink) {
-                UIApplication.shared.open(webURL)
             }
         }
     }
