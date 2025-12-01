@@ -21,14 +21,20 @@ struct WiadomosciView: View {
             Image(backgroundImageName).resizable().scaledToFill().ignoresSafeArea()
             
             VStack(spacing: 0) {
-                Text("Wybierz coś dla siebie").font(.largeTitle).fontWeight(.bold).foregroundColor(.white).multilineTextAlignment(.center).padding(.top, 60).padding(.bottom, 50)
+                Spacer()
                 
-                VStack(spacing: 35) {
-                    CategoryLink(title: "Aktualności", iconName: "newspaper.fill", url: newsURL)
-                    CategoryLink(title: "Sport", iconName: "soccerball", url: sportURL)
-                    CategoryLink(title: "Kultura", iconName: "theatermasks.fill", url: cultureURL)
-                    CategoryLink(title: "Pogoda", iconName: "cloud.sun.fill", url: weatherURL)
-                    CategoryLink(title: "Polska", iconName: "flag.fill", url: polandURL)
+                VStack(spacing: 0) {
+                    Text("Wybierz coś dla siebie")
+                        .font(.largeTitle).fontWeight(.bold).foregroundColor(.white)
+                        .multilineTextAlignment(.center).padding(.bottom, 50)
+                    
+                    VStack(spacing: 35) {
+                        CategoryLink(title: "Aktualności", iconName: "newspaper.fill", url: newsURL)
+                        CategoryLink(title: "Sport", iconName: "soccerball", url: sportURL)
+                        CategoryLink(title: "Kultura", iconName: "theatermasks.fill", url: cultureURL)
+                        CategoryLink(title: "Pogoda", iconName: "cloud.sun.fill", url: weatherURL)
+                        CategoryLink(title: "Polska", iconName: "flag.fill", url: polandURL)
+                    }
                 }
                 .padding(.horizontal, 20)
                 

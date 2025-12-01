@@ -9,10 +9,8 @@ import SwiftUI
 struct KontaktView: View {
     
     let backgroundImageName: String
-    
     @State private var pulsate = false
 
-    // Linki
     private let whatsAppURL = URL(string: "https://wa.me/4407300191211")!
     private let facebookAppURL = "fb://profile/100083266690757"
     private let facebookWebURL = "https://www.facebook.com/naszeradiouk/"
@@ -25,47 +23,47 @@ struct KontaktView: View {
         ZStack {
             Image(backgroundImageName).resizable().scaledToFill().ignoresSafeArea()
             
-            // TREŚĆ
+            // UKŁAD IDENTYCZNY JAK W REKLAMIE
             VStack(spacing: 0) {
+                Spacer()
                 
-                VStack(spacing: 5) {
+                VStack(spacing: 0) {
                     Text("Masz ciekawy temat?")
-                        .font(.title2)
+                        .font(.title2).fontWeight(.medium).foregroundColor(.white).padding(.bottom, 5)
+                    
                     Text("Widzisz coś na drodze?")
-                        .font(.title2)
+                        .font(.title2).fontWeight(.medium).foregroundColor(.white).padding(.bottom, 5)
+                    
                     Text("Napisz do nas:")
-                        .font(.title3).fontWeight(.light)
-                }
-                .foregroundColor(.white)
-                .multilineTextAlignment(.center)
-                .padding(.top, 60)
+                        .font(.title2).fontWeight(.light).foregroundColor(.white).padding(.bottom, 40)
 
-                Link(destination: whatsAppURL) {
-                    Text("Wyślij wiadomość na WhatsApp")
-                        .font(.headline).fontWeight(.bold).foregroundColor(.black)
-                        .padding(.vertical, 15)
-                        .frame(width: 300)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.green).scaleEffect(pulsate ? 1.05 : 1.0))
+                    Link(destination: whatsAppURL) {
+                        Text("Wyślij wiadomość na WhatsApp")
+                            .font(.headline).fontWeight(.bold).foregroundColor(.black)
+                            .padding(.vertical, 15)
+                            .frame(width: 300)
+                            .background(RoundedRectangle(cornerRadius: 10).fill(Color.green).scaleEffect(pulsate ? 1.05 : 1.0))
+                    }
+                    .padding(.bottom, 40)
+                    .onAppear {
+                        withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) { pulsate.toggle() }
+                    }
+                    
+                    VStack(spacing: 30) {
+                        SmartLinkButton(title: "Facebook", appLink: facebookAppURL, webLink: facebookWebURL)
+                        SmartLinkButton(title: "TikTok", appLink: tiktokAppURL, webLink: tiktokWebURL)
+                        SmartLinkButton(title: "Instagram", appLink: instagramAppURL, webLink: instagramWebURL)
+                    }
                 }
-                .padding(.top, 40)
-                .onAppear {
-                    withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) { pulsate.toggle() }
-                }
-                
-                VStack(spacing: 40) {
-                    SmartLinkButton(title: "Facebook", appLink: facebookAppURL, webLink: facebookWebURL)
-                    SmartLinkButton(title: "TikTok", appLink: tiktokAppURL, webLink: tiktokWebURL)
-                    SmartLinkButton(title: "Instagram", appLink: instagramAppURL, webLink: instagramWebURL)
-                }
-                .padding(.top, 60)
+                .padding(.horizontal, 20)
                 
                 Spacer()
                 
                 Text("Nasze Radio UK © 2025")
                     .font(.caption).foregroundColor(.gray).padding(.bottom, 20)
             }
-            .frame(maxWidth: 600) // Bezpiecznik iPada
-            .frame(maxWidth: .infinity, maxHeight: .infinity) // Centrowanie
+            .frame(maxWidth: 600)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }

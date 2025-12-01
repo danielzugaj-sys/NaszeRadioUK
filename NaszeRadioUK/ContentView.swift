@@ -7,68 +7,69 @@ struct ContentView: View {
     let backgroundImageName = "HexagonBackground"
     let mainLogoName = "MainLogo"
     
+    // Konfiguracja czarnego paska
+    init() {
+        let appearance = UITabBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = .black
+        
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
+    
     var body: some View {
         TabView {
             // MARK: - 1. Główny Ekran Radiowy
             ZStack {
-                // WARSTWA 1: TŁO (Rozciągnięte na maksa)
-                // Używamy GeometryReader tylko do tła, żeby mieć pewność, że wypełni wszystko
-                GeometryReader { geo in
-                    Image(backgroundImageName)
-                        .resizable()
-                        .scaledToFill() // Kluczowe: Wypełnia cały ekran, przycinając nadmiar
-                        .frame(width: geo.size.width, height: geo.size.height)
-                        .ignoresSafeArea()
-                }
+                Image(backgroundImageName).resizable().scaledToFill().ignoresSafeArea()
 
-                // WARSTWA 2: TREŚĆ (Bezpieczna, na środku)
-                VStack {
-                    // Logo Główne
-                    Image(mainLogoName)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: 300)
-                        .padding(.top, 60)
-                        .padding(.bottom, 20)
+                // GŁÓWNY KONTENER (Układ jak w Reklamie)
+                VStack(spacing: 0) {
                     
+                    // 1. GÓRNY SPACER (Spycha wszystko na środek)
                     Spacer()
                     
-                    // Tytuł
-                    Text(radioPlayer.currentTrack)
-                        .font(.title)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                    // 2. TREŚĆ WŁAŚCIWA (Logo + Player)
+                    VStack(spacing: 0) {
+                        // Logo
+                        Image(mainLogoName)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxWidth: 300)
+                            .padding(.bottom, 30) // Zmniejszony odstęp, żeby było spójnie
+                        
+                        // Tytuł
+                        Text(radioPlayer.currentTrack)
+                            .font(.title)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                            .padding(.bottom, 40)
+                        
+                        // Play Button
+                        Button(action: {
+                            if radioPlayer.isPlaying { radioPlayer.pause() } else { radioPlayer.play() }
+                        }) {
+                            Image(systemName: radioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                                .font(.system(size: 100))
+                                .foregroundColor(Color.white)
+                                .shadow(radius: 10)
+                        }
                         .padding(.bottom, 40)
-                    
-                    // Play
-                    Button(action: {
-                        if radioPlayer.isPlaying {
-                            radioPlayer.pause()
-                        } else {
-                            radioPlayer.play()
+                        
+                        // Suwak
+                        VStack {
+                            HStack {
+                                Image(systemName: "speaker.fill").foregroundColor(.gray)
+                                Slider(value: $radioPlayer.volume, in: 0...1).accentColor(.white)
+                                Image(systemName: "speaker.wave.3.fill").foregroundColor(.white)
+                            }
+                            .padding(.horizontal, 40)
                         }
-                    }) {
-                        Image(systemName: radioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                            .font(.system(size: 100))
-                            .foregroundColor(Color.white)
-                            .shadow(radius: 10)
                     }
-                    .padding(.bottom, 40)
                     
-                    // Suwak
-                    VStack {
-                        HStack {
-                            Image(systemName: "speaker.fill").foregroundColor(.gray)
-                            Slider(value: $radioPlayer.volume, in: 0...1)
-                                .accentColor(.white)
-                            Image(systemName: "speaker.wave.3.fill").foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 40)
-                    }
-                    .padding(.bottom, 60)
-                    
+                    // 3. DOLNY SPACER
                     Spacer()
                     
                     // Stopka
@@ -77,15 +78,14 @@ struct ContentView: View {
                         .foregroundColor(.gray)
                         .padding(.bottom, 20)
                 }
-                .frame(maxWidth: 600) // Trzyma treść w ryzach na iPadzie
+                .frame(maxWidth: 600) // Ograniczenie szerokości
+                .frame(maxWidth: .infinity, maxHeight: .infinity) // Centrowanie
             }
             .tabItem {
                 Label("NR", systemImage: "antenna.radiowaves.left.and.right")
             }
             
             // MARK: - 2. Pozostałe zakładki
-            // (One używają swoich plików, więc tam też tło musi być tak zrobione,
-            // ale sprawdźmy najpierw czy strona główna działa)
             
             KontaktView(backgroundImageName: backgroundImageName)
                 .tabItem { Label("Kontakt", systemImage: "phone.fill") }
@@ -101,10 +101,6 @@ struct ContentView: View {
             
         }
         .tint(.white)
-        .onAppear {
-             UITabBar.appearance().barTintColor = .black
-             UITabBar.appearance().isTranslucent = false
-         }
     }
 }
 
