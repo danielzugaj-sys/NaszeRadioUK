@@ -12,126 +12,75 @@ struct KontaktView: View {
     
     @State private var pulsate = false
 
-    // MARK: - KONFIGURACJA LINKÓW
-    
-    // WhatsApp
-    private let whatsAppURL = URL(string: "https://wa.me/44777123456")!
-    
-    // FACEBOOK - POPRAWIONY DLA TWOJEGO ID
-    // Używamy 'profile' ponieważ ID 1000... to format nowego typu strony/profilu
+    // Linki
+    private let whatsAppURL = URL(string: "https://wa.me/4407300191211")!
     private let facebookAppURL = "fb://profile/100083266690757"
     private let facebookWebURL = "https://www.facebook.com/naszeradiouk/"
-    
-    // TIKTOK
     private let tiktokAppURL = "snssdk1232://user/profile/naszeradio_uk"
     private let tiktokWebURL = "https://www.tiktok.com/@naszeradio_uk"
-    
-    // INSTAGRAM
     private let instagramAppURL = "instagram://user?username=naszeradiowuk"
     private let instagramWebURL = "https://www.instagram.com/naszeradiowuk/"
     
     var body: some View {
         ZStack {
-            // TŁO
-            Image(backgroundImageName)
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
+            Image(backgroundImageName).resizable().scaledToFill().ignoresSafeArea()
             
-            // MARK: - Warstwa TREŚCI
+            // TREŚĆ
             VStack(spacing: 0) {
                 
-                // NAGŁÓWEK
                 VStack(spacing: 5) {
                     Text("Masz ciekawy temat?")
                         .font(.title2)
                     Text("Widzisz coś na drodze?")
                         .font(.title2)
                     Text("Napisz do nas:")
-                        .font(.title3)
-                        .fontWeight(.light)
+                        .font(.title3).fontWeight(.light)
                 }
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
-                .padding(.top, 80)
+                .padding(.top, 60)
 
-                
-                // PRZYCISK WHATSAPP
                 Link(destination: whatsAppURL) {
                     Text("Wyślij wiadomość na WhatsApp")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.black)
+                        .font(.headline).fontWeight(.bold).foregroundColor(.black)
                         .padding(.vertical, 15)
                         .frame(width: 300)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color.green)
-                                .scaleEffect(pulsate ? 1.05 : 1.0)
-                        )
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.green).scaleEffect(pulsate ? 1.05 : 1.0))
                 }
                 .padding(.top, 40)
                 .onAppear {
-                    withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
-                        pulsate.toggle()
-                    }
+                    withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) { pulsate.toggle() }
                 }
                 
-                // MARK: - LINKI DO SOCIAL MEDIÓW (SMART BUTTONS)
                 VStack(spacing: 40) {
-                    // Facebook
                     SmartLinkButton(title: "Facebook", appLink: facebookAppURL, webLink: facebookWebURL)
-                    
-                    // TikTok
                     SmartLinkButton(title: "TikTok", appLink: tiktokAppURL, webLink: tiktokWebURL)
-                    
-                    // Instagram
                     SmartLinkButton(title: "Instagram", appLink: instagramAppURL, webLink: instagramWebURL)
                 }
-                .padding(.top, 70)
+                .padding(.top, 60)
                 
                 Spacer()
                 
-                // STOPKA
                 Text("Nasze Radio UK © 2025")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                    .padding(.bottom, 1)
+                    .font(.caption).foregroundColor(.gray).padding(.bottom, 20)
             }
-            .padding(.horizontal, 30)
-            .toolbarColorScheme(.dark, for: .tabBar)
-            
-        } // Koniec ZStack
+            .frame(maxWidth: 600) // Bezpiecznik iPada
+            .frame(maxWidth: .infinity, maxHeight: .infinity) // Centrowanie
+        }
     }
 }
 
-// MARK: - INTELIGENTNY PRZYCISK (Smart Button)
 struct SmartLinkButton: View {
-    let title: String
-    let appLink: String
-    let webLink: String
-    
+    let title: String; let appLink: String; let webLink: String
     var body: some View {
-        Button(action: {
-            openSmartLink()
-        }) {
-            Text(title)
-                .font(.largeTitle)
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
+        Button(action: { openSmartLink() }) {
+            Text(title).font(.largeTitle).fontWeight(.semibold).foregroundColor(.white)
         }
     }
-    
     func openSmartLink() {
-        // 1. Próbujemy otworzyć aplikację
         if let appURL = URL(string: appLink) {
             UIApplication.shared.open(appURL) { success in
-                if !success {
-                    // 2. Jeśli się nie uda (brak apki), otwieramy WWW
-                    if let webURL = URL(string: webLink) {
-                        UIApplication.shared.open(webURL)
-                    }
-                }
+                if !success { if let webURL = URL(string: webLink) { UIApplication.shared.open(webURL) } }
             }
         }
     }

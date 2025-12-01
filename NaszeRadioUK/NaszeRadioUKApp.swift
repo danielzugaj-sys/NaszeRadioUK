@@ -10,7 +10,6 @@ import SwiftUI
 struct NaszeRadioUKApp: App {
     var body: some Scene {
         WindowGroup {
-            // TUTAJ ContentView() MUSI być wywołane TYLKO RAZ!
             ContentView()
         }
     }

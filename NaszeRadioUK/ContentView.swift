@@ -2,46 +2,47 @@ import SwiftUI
 
 struct ContentView: View {
     
-    // Inicjalizacja silnika radiowego
     @StateObject var radioPlayer = RadioPlayer()
 
-    // Nazwy plików graficznych z Assets.xcassets
     let backgroundImageName = "HexagonBackground"
     let mainLogoName = "MainLogo"
     
     var body: some View {
-        // TabView tworzy dolny pasek nawigacyjny
         TabView {
-            // MARK: - 1. Główny Ekran Radiowy (NR)
+            // MARK: - 1. Główny Ekran Radiowy
             ZStack {
-                // 1. TŁO
-                Image(backgroundImageName)
-                    .resizable()
-                    .scaledToFill()
-                    .ignoresSafeArea()
+                // WARSTWA 1: TŁO (Rozciągnięte na maksa)
+                // Używamy GeometryReader tylko do tła, żeby mieć pewność, że wypełni wszystko
+                GeometryReader { geo in
+                    Image(backgroundImageName)
+                        .resizable()
+                        .scaledToFill() // Kluczowe: Wypełnia cały ekran, przycinając nadmiar
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .ignoresSafeArea()
+                }
 
-                // 2. GŁÓWNA ZAWARTOŚĆ
+                // WARSTWA 2: TREŚĆ (Bezpieczna, na środku)
                 VStack {
                     // Logo Główne
                     Image(mainLogoName)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(maxWidth: 300)
-                        .padding(.top, 40)
+                        .padding(.top, 60)
                         .padding(.bottom, 20)
                     
                     Spacer()
                     
-                    // INFORMACJA O PIOSENCE
+                    // Tytuł
                     Text(radioPlayer.currentTrack)
-                        .font(.title2)
+                        .font(.title)
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                         .padding(.bottom, 40)
                     
-                    // 1. JEDEN DUŻY PRZYCISK PLAY/PAUSE
+                    // Play
                     Button(action: {
                         if radioPlayer.isPlaying {
                             radioPlayer.pause()
@@ -50,23 +51,23 @@ struct ContentView: View {
                         }
                     }) {
                         Image(systemName: radioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                            .font(.system(size: 100)) // Większy przycisk
+                            .font(.system(size: 100))
                             .foregroundColor(Color.white)
-                            .shadow(radius: 10) // Cień dla lepszego efektu
+                            .shadow(radius: 10)
                     }
-                    .padding(.bottom, 20)
+                    .padding(.bottom, 40)
                     
-                    // 2. SUWAK GŁOŚNOŚCI
+                    // Suwak
                     VStack {
                         HStack {
                             Image(systemName: "speaker.fill").foregroundColor(.gray)
                             Slider(value: $radioPlayer.volume, in: 0...1)
-                                .accentColor(.white) // Biały suwak
+                                .accentColor(.white)
                             Image(systemName: "speaker.wave.3.fill").foregroundColor(.white)
                         }
                         .padding(.horizontal, 40)
                     }
-                    .padding(.bottom, 80)
+                    .padding(.bottom, 60)
                     
                     Spacer()
                     
@@ -74,36 +75,31 @@ struct ContentView: View {
                     Text("Nasze Radio UK © 2025")
                         .font(.caption)
                         .foregroundColor(.gray)
-                        .padding(.bottom, 5)
+                        .padding(.bottom, 20)
                 }
-            } // Koniec ZStack
-            
-            // Konfiguracja zakładki radiowej
+                .frame(maxWidth: 600) // Trzyma treść w ryzach na iPadzie
+            }
             .tabItem {
                 Label("NR", systemImage: "antenna.radiowaves.left.and.right")
             }
             
-            // MARK: - 2. Pozostałe zakładki (Zintegrowane Widoki)
+            // MARK: - 2. Pozostałe zakładki
+            // (One używają swoich plików, więc tam też tło musi być tak zrobione,
+            // ale sprawdźmy najpierw czy strona główna działa)
             
-            // KONTAKT
             KontaktView(backgroundImageName: backgroundImageName)
                 .tabItem { Label("Kontakt", systemImage: "phone.fill") }
             
-            // REKLAMA
             ReklamaView(backgroundImageName: backgroundImageName)
                 .tabItem { Label("Reklama", systemImage: "speaker.fill") }
 
-            // O NAS
             ONasView(backgroundImageName: backgroundImageName)
                 .tabItem { Label("O Nas", systemImage: "info.circle.fill") }
 
-            // WIADOMOŚCI
             WiadomosciView(backgroundImageName: backgroundImageName)
                 .tabItem { Label("Wiadomości", systemImage: "newspaper.fill") }
             
-        } // Koniec TabView
-        
-        // Ustawienie stylów dla dolnego paska
+        }
         .tint(.white)
         .onAppear {
              UITabBar.appearance().barTintColor = .black
@@ -111,6 +107,7 @@ struct ContentView: View {
          }
     }
 }
+
 #Preview {
     ContentView()
 }
