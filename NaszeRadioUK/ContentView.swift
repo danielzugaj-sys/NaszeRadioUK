@@ -3,6 +3,9 @@ import SwiftUI
 struct ContentView: View {
     
     @StateObject var radioPlayer = RadioPlayer()
+    
+    // Zmienna do animacji pulsowania napisu
+    @State private var isPulsing = false
 
     let backgroundImageName = "HexagonBackground"
     let mainLogoName = "MainLogo"
@@ -23,12 +26,12 @@ struct ContentView: View {
             ZStack {
                 Image(backgroundImageName).resizable().scaledToFill().ignoresSafeArea()
 
-                // GŁÓWNY KONTENER (Układ jak w Reklamie)
+                // GŁÓWNY KONTENER
                 VStack(spacing: 0) {
-                    
-                    // 1. GÓRNY SPACER (Spycha wszystko na środek)
+                   
+                    // 1. GÓRNY SPACER
                     Spacer()
-                    
+                   
                     // 2. TREŚĆ WŁAŚCIWA (Logo + Player)
                     VStack(spacing: 0) {
                         // Logo
@@ -36,8 +39,8 @@ struct ContentView: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(maxWidth: 300)
-                            .padding(.bottom, 30) // Zmniejszony odstęp, żeby było spójnie
-                        
+                            .padding(.bottom, 30)
+                       
                         // Tytuł
                         Text(radioPlayer.currentTrack)
                             .font(.title)
@@ -46,19 +49,73 @@ struct ContentView: View {
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
                             .padding(.bottom, 40)
-                        
-                        // Play Button
-                        Button(action: {
-                            if radioPlayer.isPlaying { radioPlayer.pause() } else { radioPlayer.play() }
-                        }) {
-                            Image(systemName: radioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                                .font(.system(size: 100))
-                                .foregroundColor(Color.white)
-                                .shadow(radius: 10)
+                            .animation(.default, value: radioPlayer.currentTrack) // Ładna animacja zmiany tekstu
+                       
+                        // --- ZMIANA: INTELIGENTNY PRZYCISK STARTU ---
+                        ZStack {
+                            
+                            // 1. STAN BŁĘDU (BRAK INTERNETU PO 2 MINUTACH)
+                            if let error = radioPlayer.connectionError {
+                                VStack(spacing: 15) {
+                                    Text(error)
+                                        .font(.headline)
+                                        .foregroundColor(.red)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal)
+                                    
+                                    // Przycisk "Spróbuj ponownie" (wygląda jak Play)
+                                    Button(action: {
+                                        radioPlayer.play()
+                                    }) {
+                                        Image(systemName: "arrow.clockwise.circle.fill")
+                                            .font(.system(size: 80))
+                                            .foregroundColor(.white)
+                                            .shadow(radius: 10)
+                                    }
+                                }
+                            }
+                            
+                            // 2. STAN ŁADOWANIA (KRĘCĄCE KÓŁKO + PULSUJĄCY NAPIS)
+                            else if radioPlayer.isLoading {
+                                VStack(spacing: 15) {
+                                    Text("TRWA POŁĄCZENIE...")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                        .opacity(isPulsing ? 1.0 : 0.3) // Animacja przezroczystości
+                                        .onAppear {
+                                            withAnimation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                                                isPulsing = true
+                                            }
+                                        }
+                                    
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .scaleEffect(2.5) // Powiększone kółko
+                                }
+                                .frame(height: 100) // Rezerwujemy tyle samo miejsca co przycisk, żeby nie skakało
+                            }
+                            
+                            // 3. STAN NORMALNY (PLAY / PAUSE)
+                            else {
+                                Button(action: {
+                                    if radioPlayer.isPlaying {
+                                        radioPlayer.pause()
+                                    } else {
+                                        radioPlayer.play()
+                                    }
+                                }) {
+                                    Image(systemName: radioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                                        .font(.system(size: 100))
+                                        .foregroundColor(Color.white)
+                                        .shadow(radius: 10)
+                                }
+                                .transition(.scale) // Animacja pojawiania się przycisku
+                            }
                         }
                         .padding(.bottom, 40)
-                        
-                        // Suwak
+                        // ---------------------------------------------
+                       
+                        // Suwak Głośności
                         VStack {
                             HStack {
                                 Image(systemName: "speaker.fill").foregroundColor(.gray)
@@ -68,28 +125,28 @@ struct ContentView: View {
                             .padding(.horizontal, 40)
                         }
                     }
-                    
+                   
                     // 3. DOLNY SPACER
                     Spacer()
-                    
+                   
                     // Stopka
                     Text("Nasze Radio UK © 2025")
                         .font(.caption)
                         .foregroundColor(.gray)
                         .padding(.bottom, 20)
                 }
-                .frame(maxWidth: 600) // Ograniczenie szerokości
-                .frame(maxWidth: .infinity, maxHeight: .infinity) // Centrowanie
+                .frame(maxWidth: 600)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .tabItem {
                 Label("NR", systemImage: "antenna.radiowaves.left.and.right")
             }
-            
+           
             // MARK: - 2. Pozostałe zakładki
-            
+           
             KontaktView(backgroundImageName: backgroundImageName)
                 .tabItem { Label("Kontakt", systemImage: "phone.fill") }
-            
+           
             ReklamaView(backgroundImageName: backgroundImageName)
                 .tabItem { Label("Reklama", systemImage: "speaker.fill") }
 
@@ -98,7 +155,7 @@ struct ContentView: View {
 
             WiadomosciView(backgroundImageName: backgroundImageName)
                 .tabItem { Label("Wiadomości", systemImage: "newspaper.fill") }
-            
+           
         }
         .tint(.white)
     }
