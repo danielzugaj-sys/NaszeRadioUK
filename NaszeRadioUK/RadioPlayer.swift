@@ -2,7 +2,7 @@
 //  RadioPlayer.swift
 //  NaszeRadioUK
 //
-//  Zaktualizowano: Szybki Reconnect (co 1.5 sekundy)
+//  POPRAWKA: Kółko ładowania teraz czeka na faktyczny dźwięk (bufor).
 //
 
 import Foundation
@@ -30,11 +30,10 @@ class RadioPlayer: NSObject, ObservableObject {
     private var playerItem: AVPlayerItem?
     private var metadataTimer: Timer?
     
-    // Zmienne do Auto-Reconnect (SZYBKIE WZNAWIANIE)
+    // Auto-Reconnect
     private var retryTimer: Timer?
     private var retryAttempts = 0
-    // 80 prób * 1.5 sekundy = 120 sekund (2 minuty walki o sygnał)
-    private let maxRetryAttempts = 80
+    private let maxRetryAttempts = 80 // 2 minuty
     
     // Adresy
     private let streamURL = "https://s9.citrus3.com:8226/"
@@ -47,6 +46,7 @@ class RadioPlayer: NSObject, ObservableObject {
         setupRemoteTransportControls()
         startMetadataTimer()
         
+        // Obserwatory systemowe
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(handleInterruption),
                                                name: AVAudioSession.interruptionNotification,
@@ -74,19 +74,39 @@ class RadioPlayer: NSObject, ObservableObject {
     private func setupPlayer() {
         guard let url = URL(string: streamURL) else { return }
         
+        // Czyścimy stary item jeśli był
+        if let item = playerItem {
+            removeItemObservers(item: item)
+        }
+        
         playerItem = AVPlayerItem(url: url)
-        playerItem?.addObserver(self, forKeyPath: "timedMetadata", options: .new, context: nil)
+        // Dodajemy obserwatory do NOWEGO itemu
+        addItemObservers(item: playerItem!)
         
         if player == nil {
             player = AVPlayer(playerItem: playerItem)
+            player?.addObserver(self, forKeyPath: "timeControlStatus", options: [.old, .new], context: nil)
         } else {
             player?.replaceCurrentItem(with: playerItem)
         }
         
         player?.volume = volume
-        
-        // Obserwator STATUSU (To odpowiada za kręcące się kółko)
-        player?.addObserver(self, forKeyPath: "timeControlStatus", options: [.old, .new], context: nil)
+    }
+    
+    // MARK: - Dodawanie/Usuwanie Obserwatorów (WAŻNE!)
+    
+    private func addItemObservers(item: AVPlayerItem) {
+        item.addObserver(self, forKeyPath: "timedMetadata", options: .new, context: nil)
+        item.addObserver(self, forKeyPath: "playbackBufferEmpty", options: .new, context: nil)
+        item.addObserver(self, forKeyPath: "playbackLikelyToKeepUp", options: .new, context: nil)
+        item.addObserver(self, forKeyPath: "status", options: .new, context: nil)
+    }
+    
+    private func removeItemObservers(item: AVPlayerItem) {
+        item.removeObserver(self, forKeyPath: "timedMetadata")
+        item.removeObserver(self, forKeyPath: "playbackBufferEmpty")
+        item.removeObserver(self, forKeyPath: "playbackLikelyToKeepUp")
+        item.removeObserver(self, forKeyPath: "status")
     }
     
     // MARK: - LOGIKA PLAY / PAUSE
@@ -97,8 +117,14 @@ class RadioPlayer: NSObject, ObservableObject {
         retryTimer?.invalidate()
         
         try? AVAudioSession.sharedInstance().setActive(true)
+        
+        // Jeśli player zgubił item (np. po błędzie), odnów go
+        if player?.currentItem == nil {
+            setupPlayer()
+        }
+        
         player?.play()
-        isLoading = true // Wymuszamy pokazanie kółka na start
+        isLoading = true // Wymuszamy kółko na start
     }
 
     func pause() {
@@ -120,34 +146,51 @@ class RadioPlayer: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - OBSŁUGA STATUSU
+    // MARK: - OBSŁUGA STATUSU (SERCE APLIKACJI)
     
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
         
-        if keyPath == "timeControlStatus", let player = player {
-            DispatchQueue.main.async {
-                if player.timeControlStatus == .playing {
-                    // GRA: Pokazujemy Pauzę, chowamy kółko
-                    self.isPlaying = true
-                    self.isLoading = false
-                    self.retryAttempts = 0
-                    self.updateNowPlayingInfo(title: self.currentTrack)
-                } else if player.timeControlStatus == .waitingToPlayAtSpecifiedRate {
-                    // BUFORUJE: Pokazujemy Kółko
+        DispatchQueue.main.async {
+            guard let player = self.player else { return }
+            
+            // 1. Sprawdzamy, czy bufor jest pusty (kręcimy kółkiem)
+            if keyPath == "playbackBufferEmpty" {
+                if player.currentItem?.isPlaybackBufferEmpty == true {
                     self.isLoading = true
-                    self.isPlaying = false
-                } else if player.timeControlStatus == .paused {
-                    self.isPlaying = false
-                    // isLoading zostawiamy bez zmian (chyba że to ręczna pauza obsłużona wyżej)
                 }
             }
-        }
-        
-        if keyPath == "timedMetadata" {
-            guard let item = object as? AVPlayerItem, let metadata = item.timedMetadata else { return }
-            for item in metadata {
-                if let stringValue = item.stringValue {
-                    DispatchQueue.main.async {
+            
+            // 2. Sprawdzamy, czy bufor jest pełny i gotowy do grania (chowamy kółko)
+            if keyPath == "playbackLikelyToKeepUp" {
+                if player.currentItem?.isPlaybackLikelyToKeepUp == true && player.timeControlStatus == .playing {
+                    self.isLoading = false
+                    self.isPlaying = true
+                    self.retryAttempts = 0
+                }
+            }
+            
+            // 3. Status Playera (Zabezpieczenie)
+            if keyPath == "timeControlStatus" {
+                if player.timeControlStatus == .playing {
+                    // Tylko jeśli bufor też jest gotowy, chowamy kółko
+                    if player.currentItem?.isPlaybackLikelyToKeepUp == true {
+                        self.isLoading = false
+                        self.isPlaying = true
+                        self.updateNowPlayingInfo(title: self.currentTrack)
+                    }
+                } else if player.timeControlStatus == .waitingToPlayAtSpecifiedRate {
+                    self.isLoading = true
+                } else if player.timeControlStatus == .paused {
+                    self.isPlaying = false
+                    // Nie zmieniamy isLoading tutaj, bo to może być chwilowy brak danych
+                }
+            }
+            
+            // 4. Metadane
+            if keyPath == "timedMetadata" {
+                guard let item = object as? AVPlayerItem, let metadata = item.timedMetadata else { return }
+                for item in metadata {
+                    if let stringValue = item.stringValue {
                         self.currentTrack = stringValue
                         self.updateNowPlayingInfo(title: stringValue)
                     }
@@ -156,13 +199,13 @@ class RadioPlayer: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - SZYBKI AUTO-RECONNECT (1.5 sekundy)
+    // MARK: - AUTO-RECONNECT
     
     @objc func playerDidFinishPlaying(note: NSNotification) {
-        print("Utracono połączenie. Rozpoczynam szybkie wznawianie...")
+        print("Utracono połączenie. Restart...")
         DispatchQueue.main.async {
             self.isPlaying = false
-            self.isLoading = true // Kręcimy kółkiem podczas prób
+            self.isLoading = true
             self.attemptReconnect()
         }
     }
@@ -178,10 +221,8 @@ class RadioPlayer: NSObject, ObservableObject {
         }
         
         retryAttempts += 1
-        print("Próba połączenia: \(retryAttempts) (co 1.5s)")
         
         retryTimer?.invalidate()
-        // ZMIANA: Czas skrócony do 1.5 sekundy
         retryTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in
             self?.setupPlayer()
             self?.player?.play()
@@ -267,7 +308,7 @@ class RadioPlayer: NSObject, ObservableObject {
         metadataTimer?.invalidate()
         retryTimer?.invalidate()
         NotificationCenter.default.removeObserver(self)
+        if let item = playerItem { removeItemObservers(item: item) }
         player?.removeObserver(self, forKeyPath: "timeControlStatus")
-        playerItem?.removeObserver(self, forKeyPath: "timedMetadata")
     }
 }
