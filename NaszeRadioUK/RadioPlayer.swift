@@ -2,7 +2,7 @@
 //  RadioPlayer.swift
 //  NaszeRadioUK
 //
-//  POPRAWKA: Kółko ładowania teraz czeka na faktyczny dźwięk (bufor).
+//  Zaktualizowano: AUTOSTART + Domyślne kółko ładowania + Naprawa błędu
 //
 
 import Foundation
@@ -15,7 +15,10 @@ class RadioPlayer: NSObject, ObservableObject {
     
     // MARK: - Stan Aplikacji
     @Published var isPlaying = false
-    @Published var isLoading = false
+    
+    // ZMIANA 1: Domyślnie TRUE - kółko kręci się od razu po włączeniu apki
+    @Published var isLoading = true
+    
     @Published var currentTrack = "Nasze Radio UK"
     @Published var connectionError: String? = nil
     
@@ -60,6 +63,9 @@ class RadioPlayer: NSObject, ObservableObject {
                                                selector: #selector(playerDidFinishPlaying),
                                                name: .AVPlayerItemPlaybackStalled,
                                                object: nil)
+        
+        // ZMIANA 2: Autostart - odpalamy radio automatycznie przy starcie
+        play()
     }
 
     private func setupAudioSession() {
@@ -74,13 +80,11 @@ class RadioPlayer: NSObject, ObservableObject {
     private func setupPlayer() {
         guard let url = URL(string: streamURL) else { return }
         
-        // Czyścimy stary item jeśli był
         if let item = playerItem {
             removeItemObservers(item: item)
         }
         
         playerItem = AVPlayerItem(url: url)
-        // Dodajemy obserwatory do NOWEGO itemu
         addItemObservers(item: playerItem!)
         
         if player == nil {
@@ -93,8 +97,7 @@ class RadioPlayer: NSObject, ObservableObject {
         player?.volume = volume
     }
     
-    // MARK: - Dodawanie/Usuwanie Obserwatorów (WAŻNE!)
-    
+    // MARK: - Obserwatory
     private func addItemObservers(item: AVPlayerItem) {
         item.addObserver(self, forKeyPath: "timedMetadata", options: .new, context: nil)
         item.addObserver(self, forKeyPath: "playbackBufferEmpty", options: .new, context: nil)
@@ -109,8 +112,7 @@ class RadioPlayer: NSObject, ObservableObject {
         item.removeObserver(self, forKeyPath: "status")
     }
     
-    // MARK: - LOGIKA PLAY / PAUSE
-    
+    // MARK: - Sterowanie
     func play() {
         connectionError = nil
         retryAttempts = 0
@@ -118,13 +120,12 @@ class RadioPlayer: NSObject, ObservableObject {
         
         try? AVAudioSession.sharedInstance().setActive(true)
         
-        // Jeśli player zgubił item (np. po błędzie), odnów go
         if player?.currentItem == nil {
             setupPlayer()
         }
         
         player?.play()
-        isLoading = true // Wymuszamy kółko na start
+        isLoading = true // Upewniamy się, że kółko się kręci
     }
 
     func pause() {
@@ -146,21 +147,20 @@ class RadioPlayer: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - OBSŁUGA STATUSU (SERCE APLIKACJI)
-    
+    // MARK: - Wykrywanie Stanu (Kółko vs Play)
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
         
         DispatchQueue.main.async {
             guard let player = self.player else { return }
             
-            // 1. Sprawdzamy, czy bufor jest pusty (kręcimy kółkiem)
+            // Jeśli brakuje danych w buforze -> Kółko
             if keyPath == "playbackBufferEmpty" {
                 if player.currentItem?.isPlaybackBufferEmpty == true {
                     self.isLoading = true
                 }
             }
             
-            // 2. Sprawdzamy, czy bufor jest pełny i gotowy do grania (chowamy kółko)
+            // Jeśli bufor pełny i GRA -> Chowamy Kółko
             if keyPath == "playbackLikelyToKeepUp" {
                 if player.currentItem?.isPlaybackLikelyToKeepUp == true && player.timeControlStatus == .playing {
                     self.isLoading = false
@@ -169,10 +169,9 @@ class RadioPlayer: NSObject, ObservableObject {
                 }
             }
             
-            // 3. Status Playera (Zabezpieczenie)
             if keyPath == "timeControlStatus" {
                 if player.timeControlStatus == .playing {
-                    // Tylko jeśli bufor też jest gotowy, chowamy kółko
+                    // Ukryj kółko tylko jeśli faktycznie mamy dane
                     if player.currentItem?.isPlaybackLikelyToKeepUp == true {
                         self.isLoading = false
                         self.isPlaying = true
@@ -182,11 +181,9 @@ class RadioPlayer: NSObject, ObservableObject {
                     self.isLoading = true
                 } else if player.timeControlStatus == .paused {
                     self.isPlaying = false
-                    // Nie zmieniamy isLoading tutaj, bo to może być chwilowy brak danych
                 }
             }
             
-            // 4. Metadane
             if keyPath == "timedMetadata" {
                 guard let item = object as? AVPlayerItem, let metadata = item.timedMetadata else { return }
                 for item in metadata {
@@ -199,8 +196,7 @@ class RadioPlayer: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - AUTO-RECONNECT
-    
+    // MARK: - Auto-Reconnect
     @objc func playerDidFinishPlaying(note: NSNotification) {
         print("Utracono połączenie. Restart...")
         DispatchQueue.main.async {
@@ -229,7 +225,7 @@ class RadioPlayer: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - OBSŁUGA PRZERWAŃ
+    // MARK: - Przerwania (Telefon)
     @objc func handleInterruption(notification: Notification) {
         guard let userInfo = notification.userInfo,
               let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
@@ -247,7 +243,7 @@ class RadioPlayer: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - Center Sterowania
+    // MARK: - Centrum Sterowania
     private func setupRemoteTransportControls() {
         let commandCenter = MPRemoteCommandCenter.shared()
         commandCenter.playCommand.addTarget { [weak self] _ in
@@ -268,11 +264,14 @@ class RadioPlayer: NSObject, ObservableObject {
         if let image = UIImage(named: "AppIcon") {
             nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
         }
+        
+        // ZMIANA 3: POPRAWIONY KOD (Usunięte "Center" z nazwy, żeby nie było błędu)
         nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = true
+        
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
     
-    // MARK: - Metadata JSON
+    // MARK: - Metadata
     private func startMetadataTimer() {
         fetchMetadata()
         metadataTimer = Timer.scheduledTimer(withTimeInterval: 15.0, repeats: true) { [weak self] _ in
