@@ -2,11 +2,12 @@
 //  RadioPlayer.swift
 //  NaszeRadioUK
 //
-//  Zaktualizowano: AUTOSTART + Domyślne kółko ładowania + Naprawa błędu
+//  Zaktualizowano: AUTOSTART + Obsługa powrotu internetu (NWPathMonitor)
 //
 
-import Foundation
+import Network
 import AVFoundation
+import Foundation
 import Combine
 import UIKit
 import MediaPlayer
@@ -16,7 +17,7 @@ class RadioPlayer: NSObject, ObservableObject {
     // MARK: - Stan Aplikacji
     @Published var isPlaying = false
     
-    // ZMIANA 1: Domyślnie TRUE - kółko kręci się od razu po włączeniu apki
+    // Domyślnie TRUE - kółko kręci się od razu po włączeniu apki
     @Published var isLoading = true
     
     @Published var currentTrack = "Nasze Radio UK"
@@ -29,25 +30,38 @@ class RadioPlayer: NSObject, ObservableObject {
         }
     }
     
+    // MARK: - Zmienne wewnętrzne
     private var player: AVPlayer?
     private var playerItem: AVPlayerItem?
     private var metadataTimer: Timer?
     
-    // Auto-Reconnect
+    // Monitorowanie sieci (NOWOŚĆ)
+    private let monitor = NWPathMonitor()
+    private let monitorQueue = DispatchQueue(label: "NetworkMonitor")
+    
+    // Flaga intencji użytkownika (Czy radio powinno grać?)
+    // Ustawione na true, bo masz autostart
+    var shouldBePlaying: Bool = true
+    
+    // Auto-Reconnect (stary timer, zostawiamy jako zapas)
     private var retryTimer: Timer?
     private var retryAttempts = 0
-    private let maxRetryAttempts = 80 // 2 minuty
+    private let maxRetryAttempts = 80
     
     // Adresy
     private let streamURL = "https://s9.citrus3.com:8226/"
     private let metadataURL = "https://s9.citrus3.com:2020/json/stream/naszeradiouk"
 
+    // MARK: - Init
     override init() {
         super.init()
         setupAudioSession()
         setupPlayer()
         setupRemoteTransportControls()
         startMetadataTimer()
+        
+        // Uruchomienie monitora sieci (NOWOŚĆ)
+        setupNetworkMonitor()
         
         // Obserwatory systemowe
         NotificationCenter.default.addObserver(self,
@@ -59,13 +73,42 @@ class RadioPlayer: NSObject, ObservableObject {
                                                selector: #selector(playerDidFinishPlaying),
                                                name: .AVPlayerItemFailedToPlayToEndTime,
                                                object: nil)
+        
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(playerDidFinishPlaying),
                                                name: .AVPlayerItemPlaybackStalled,
                                                object: nil)
         
-        // ZMIANA 2: Autostart - odpalamy radio automatycznie przy starcie
+        // Autostart
         play()
+    }
+
+    // MARK: - Konfiguracja Sieci (NOWOŚĆ - NAPRAWA BŁĘDU)
+    private func setupNetworkMonitor() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard let self = self else { return }
+            
+            if path.status == .satisfied {
+                print("🌍 Internet dostępny!")
+                
+                // Jeśli internet wrócił, a radio powinno grać (użytkownik nie dał pauzy)
+                // ORAZ radio aktualnie nie gra (lub się buforuje w nieskończoność)
+                if self.shouldBePlaying {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        // Jeśli mimo powrotu sieci player nie gra, robimy twardy restart
+                        if self.player?.timeControlStatus != .playing {
+                            self.reloadStation()
+                        }
+                    }
+                }
+            } else {
+                print("❌ Utracono połączenie z internetem")
+                DispatchQueue.main.async {
+                    self.isLoading = true // Pokazujemy kółko, bo nie ma neta
+                }
+            }
+        }
+        monitor.start(queue: monitorQueue)
     }
 
     private func setupAudioSession() {
@@ -77,6 +120,7 @@ class RadioPlayer: NSObject, ObservableObject {
         }
     }
 
+    // Standardowa konfiguracja playera
     private func setupPlayer() {
         guard let url = URL(string: streamURL) else { return }
         
@@ -90,6 +134,8 @@ class RadioPlayer: NSObject, ObservableObject {
         if player == nil {
             player = AVPlayer(playerItem: playerItem)
             player?.addObserver(self, forKeyPath: "timeControlStatus", options: [.old, .new], context: nil)
+            // Ważne dla streamingu:
+            player?.automaticallyWaitsToMinimizeStalling = true
         } else {
             player?.replaceCurrentItem(with: playerItem)
         }
@@ -97,7 +143,30 @@ class RadioPlayer: NSObject, ObservableObject {
         player?.volume = volume
     }
     
-    // MARK: - Obserwatory
+    // Funkcja do "twardego" restartu po powrocie internetu
+    private func reloadStation() {
+        print("🔄 Restartowanie strumienia po powrocie sieci...")
+        guard let url = URL(string: streamURL) else { return }
+        
+        // Tworzymy nowy item, żeby pozbyć się "martwego" połączenia
+        let newItem = AVPlayerItem(url: url)
+        
+        if let currentItem = playerItem {
+            removeItemObservers(item: currentItem)
+        }
+        playerItem = newItem
+        addItemObservers(item: newItem)
+        
+        player?.replaceCurrentItem(with: newItem)
+        player?.play()
+        
+        DispatchQueue.main.async {
+            self.isLoading = true // Chwilowe kółko podczas ładowania
+            self.isPlaying = true
+        }
+    }
+    
+    // MARK: - Obserwatory KVO
     private func addItemObservers(item: AVPlayerItem) {
         item.addObserver(self, forKeyPath: "timedMetadata", options: .new, context: nil)
         item.addObserver(self, forKeyPath: "playbackBufferEmpty", options: .new, context: nil)
@@ -114,6 +183,7 @@ class RadioPlayer: NSObject, ObservableObject {
     
     // MARK: - Sterowanie
     func play() {
+        shouldBePlaying = true // Użytkownik chce słuchać
         connectionError = nil
         retryAttempts = 0
         retryTimer?.invalidate()
@@ -125,10 +195,11 @@ class RadioPlayer: NSObject, ObservableObject {
         }
         
         player?.play()
-        isLoading = true // Upewniamy się, że kółko się kręci
+        isLoading = true
     }
 
     func pause() {
+        shouldBePlaying = false // Użytkownik zatrzymał celowo
         retryTimer?.invalidate()
         player?.pause()
         isPlaying = false
@@ -136,6 +207,7 @@ class RadioPlayer: NSObject, ObservableObject {
     }
     
     func stop() {
+        shouldBePlaying = false // Użytkownik zatrzymał celowo
         retryTimer?.invalidate()
         player?.pause()
         player?.seek(to: .zero)
@@ -162,16 +234,18 @@ class RadioPlayer: NSObject, ObservableObject {
             
             // Jeśli bufor pełny i GRA -> Chowamy Kółko
             if keyPath == "playbackLikelyToKeepUp" {
-                if player.currentItem?.isPlaybackLikelyToKeepUp == true && player.timeControlStatus == .playing {
-                    self.isLoading = false
-                    self.isPlaying = true
-                    self.retryAttempts = 0
+                if player.currentItem?.isPlaybackLikelyToKeepUp == true && self.shouldBePlaying {
+                    // Tylko jeśli użytkownik chce grać
+                    if player.timeControlStatus == .playing || player.timeControlStatus == .waitingToPlayAtSpecifiedRate {
+                         self.isLoading = false
+                         self.isPlaying = true
+                         self.retryAttempts = 0
+                    }
                 }
             }
             
             if keyPath == "timeControlStatus" {
                 if player.timeControlStatus == .playing {
-                    // Ukryj kółko tylko jeśli faktycznie mamy dane
                     if player.currentItem?.isPlaybackLikelyToKeepUp == true {
                         self.isLoading = false
                         self.isPlaying = true
@@ -180,7 +254,13 @@ class RadioPlayer: NSObject, ObservableObject {
                 } else if player.timeControlStatus == .waitingToPlayAtSpecifiedRate {
                     self.isLoading = true
                 } else if player.timeControlStatus == .paused {
-                    self.isPlaying = false
+                    // Jeśli zapauzowano, ale shouldBePlaying jest true, to znaczy że to buforowanie lub błąd sieci
+                    if self.shouldBePlaying {
+                        self.isLoading = true
+                    } else {
+                        self.isPlaying = false
+                        self.isLoading = false
+                    }
                 }
             }
             
@@ -196,13 +276,17 @@ class RadioPlayer: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - Auto-Reconnect
+    // MARK: - Obsługa błędów playera
     @objc func playerDidFinishPlaying(note: NSNotification) {
-        print("Utracono połączenie. Restart...")
-        DispatchQueue.main.async {
-            self.isPlaying = false
-            self.isLoading = true
-            self.attemptReconnect()
+        print("Player zakończył/błąd. Próba reconnectu...")
+        
+        // Tylko jeśli użytkownik nie zatrzymał ręcznie
+        if shouldBePlaying {
+            DispatchQueue.main.async {
+                self.isPlaying = false
+                self.isLoading = true
+                self.attemptReconnect()
+            }
         }
     }
     
@@ -219,9 +303,11 @@ class RadioPlayer: NSObject, ObservableObject {
         retryAttempts += 1
         
         retryTimer?.invalidate()
-        retryTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in
-            self?.setupPlayer()
-            self?.player?.play()
+        retryTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            if self.shouldBePlaying {
+                self.reloadStation() // Używamy teraz reloadStation zamiast zwykłego setup
+            }
         }
     }
 
@@ -232,11 +318,13 @@ class RadioPlayer: NSObject, ObservableObject {
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
 
         if type == .began {
+            // Rozmowa przychodząca - pauza, ale nie zmieniamy shouldBePlaying na false,
+            // bo chcemy wrócić po rozmowie (chyba że tak wolisz)
             player?.pause()
         } else if type == .ended {
             if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
                 let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-                if options.contains(.shouldResume) {
+                if options.contains(.shouldResume) && shouldBePlaying {
                     player?.play()
                 }
             }
@@ -265,7 +353,6 @@ class RadioPlayer: NSObject, ObservableObject {
             nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
         }
         
-        // ZMIANA 3: POPRAWIONY KOD (Usunięte "Center" z nazwy, żeby nie było błędu)
         nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = true
         
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
@@ -304,6 +391,7 @@ class RadioPlayer: NSObject, ObservableObject {
     }
     
     deinit {
+        monitor.cancel() // Zatrzymujemy monitor sieci
         metadataTimer?.invalidate()
         retryTimer?.invalidate()
         NotificationCenter.default.removeObserver(self)
