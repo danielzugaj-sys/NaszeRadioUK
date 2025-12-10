@@ -46,7 +46,7 @@ class RadioPlayer: NSObject, ObservableObject {
     // Auto-Reconnect (stary timer, zostawiamy jako zapas)
     private var retryTimer: Timer?
     private var retryAttempts = 0
-    private let maxRetryAttempts = 80
+    private let maxRetryAttempts = 36
     
     // Adresy
     private let streamURL = "https://s9.citrus3.com:8226/"
@@ -303,7 +303,7 @@ class RadioPlayer: NSObject, ObservableObject {
         retryAttempts += 1
         
         retryTimer?.invalidate()
-        retryTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+        retryTimer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: false) { [weak self] _ in
             guard let self = self else { return }
             if self.shouldBePlaying {
                 self.reloadStation() // Używamy teraz reloadStation zamiast zwykłego setup
@@ -361,7 +361,7 @@ class RadioPlayer: NSObject, ObservableObject {
     // MARK: - Metadata
     private func startMetadataTimer() {
         fetchMetadata()
-        metadataTimer = Timer.scheduledTimer(withTimeInterval: 15.0, repeats: true) { [weak self] _ in
+        metadataTimer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: true) { [weak self] _ in
             self?.fetchMetadata()
         }
     }
