@@ -15,6 +15,7 @@ import MediaPlayer
 class RadioPlayer: NSObject, ObservableObject {
     
     // MARK: - Stan Aplikacji
+    /// Czy radio aktualnie gra? Jeśli false, przycisk pokazuje trójkąt (Play).
     @Published var isPlaying = false
     
     // Domyślnie TRUE - kółko kręci się od razu po włączeniu apki
@@ -182,6 +183,8 @@ class RadioPlayer: NSObject, ObservableObject {
     }
     
     // MARK: - Sterowanie
+    /// Włącza radio i resetuje licznik błędów.
+    /// Użyj tej funkcji, gdy użytkownik naciśnie przycisk Play.
     func play() {
         shouldBePlaying = true // Użytkownik chce słuchać
         connectionError = nil
